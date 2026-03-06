@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 from deep_translator import GoogleTranslator
 import feedparser
 
-# 1. Configuración de página - Título actualizado
+# 1. Configuración de página
 st.set_page_config(page_title="ARGY NEWS by gg", layout="wide", page_icon="📰")
 
 # --- CONFIGURACIÓN DE IA ---
@@ -12,7 +12,7 @@ API_TOKEN = st.secrets.get("HF_TOKEN", "")
 API_URL = "https://router.huggingface.co/hf-inference/models/facebook/bart-large-cnn"
 headers_ai = {"Authorization": f"Bearer {API_TOKEN}"}
 
-# --- CONFIGURACIÓN ESTRUCTURADA DE MEDIOS ---
+# --- CONFIGURACIÓN DE MEDIOS ---
 SITES_CONFIG = {
     "Infobae": {
         "prefix": "https://www.infobae.com",
@@ -88,20 +88,20 @@ SITES_CONFIG = {
 LANG_PACK = {
     "en": {
         "title": "ARGY NEWS by gg",
+        "trends_title": "Trending in 🇦🇷",
         "refresh_btn": "Full Data Reset",
         "loading": "Processing...",
         "read_more": "Read more",
         "ai_summary": "AI Summary",
-        "no_text": "Text blocked or too short.",
         "tabs_cat": ["🌏 World", "🔥 Politics", "💰 Economy", "⚽ Sports", "🚀 Tech & Biz"]
     },
     "ko": {
         "title": "ARGY NEWS by gg",
+        "trends_title": "아르헨티나 트렌드 🇦🇷",
         "refresh_btn": "데이터 초기화",
         "loading": "처리 중...",
         "read_more": "자세히 보기",
         "ai_summary": "AI 요약",
-        "no_text": "텍스트가 너무 짧습니다.",
         "tabs_cat": ["🌏 국제", "🔥 정치", "💰 경제", "⚽ 스포츠", "🚀 기술/비즈니스"]
     }
 }
@@ -112,6 +112,20 @@ def translate(text, target_lang):
     if not text or len(text) < 3: return text
     try: return GoogleTranslator(source='auto', target=target_lang).translate(text)
     except: return text
+
+@st.cache_data(ttl=900)
+def get_twitter_trends():
+    """Obtiene los Trending Topics de Argentina mediante un bridge"""
+    url = "https://getdaytrends.com/argentina/"
+    headers = {'User-Agent': 'Mozilla/5.0'}
+    try:
+        r = requests.get(url, headers=headers, timeout=10)
+        soup = BeautifulSoup(r.text, 'html.parser')
+        # Buscamos los links dentro de la tabla de tendencias
+        trend_links = soup.select('td.ph a', limit=5)
+        return [t.get_text() for t in trend_links]
+    except:
+        return ["#Argentina", "#News", "#Tech", "#Economy", "#Sports"]
 
 def query_ai_summarizer(text_en):
     if not API_TOKEN: return "ERROR: No token found"
@@ -127,10 +141,7 @@ def query_ai_summarizer(text_en):
 
 @st.cache_data(ttl=300)
 def fetch_robust(url_rss, url_web, prefix):
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'Referer': 'https://www.google.com/'
-    }
+    headers = {'User-Agent': 'Mozilla/5.0', 'Referer': 'https://www.google.com/'}
     try:
         r = requests.get(url_rss, headers=headers, timeout=10)
         if r.status_code == 200:
@@ -159,7 +170,7 @@ def fetch_robust(url_rss, url_web, prefix):
 
 @st.cache_data(ttl=3600)
 def get_body(url):
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+    headers = {'User-Agent': 'Mozilla/5.0'}
     try:
         r = requests.get(url, headers=headers, timeout=10)
         soup = BeautifulSoup(r.text, 'html.parser')
@@ -178,6 +189,15 @@ t = LANG_PACK[lang]
 with c1:
     st.title(t["title"])
 
+# --- SECCIÓN DE TRENDING TOPICS (X/TWITTER) ---
+trends = get_twitter_trends()
+st.write(f"**{t['trends_title']}**")
+cols = st.columns(len(trends))
+for i, trend in enumerate(trends):
+    cols[i].markdown(f"`{trend}`")
+
+st.divider()
+
 cat_keys = ["WORLD", "POLITICS", "ECONOMY", "SPORTS", "TECH & BIZ"]
 tabs = st.tabs(t["tabs_cat"] + list(SITES_CONFIG.keys()))
 
@@ -191,7 +211,7 @@ def render_news(idx, item, source, key_prefix):
                 en_txt = translate(txt, 'en')
                 summary = query_ai_summarizer(en_txt)
                 st.info(translate(summary, lang))
-            else: st.warning(t["no_text"])
+            else: st.warning("Text too short.")
     st.divider()
 
 # 1. Pestañas de Categorías
@@ -205,8 +225,7 @@ for i, cat in enumerate(cat_keys):
             for name, config in SITES_CONFIG.items():
                 if cat in config["categories"]:
                     news = fetch_robust(config["categories"][cat]["rss"], config["categories"][cat]["web"], config["prefix"])
-                    if news:
-                        cat_data.append({"source": name, "item": news[0]})
+                    if news: cat_data.append({"source": name, "item": news[0]})
             for idx, entry in enumerate(cat_data[:5], 1):
                 render_news(idx, entry['item'], entry['source'], cat)
 
@@ -218,8 +237,7 @@ for i, (name, config) in enumerate(SITES_CONFIG.items(), len(cat_keys)):
             st.rerun()
         with st.spinner(t["loading"]):
             news_list = fetch_robust(config["rss_home"], config["prefix"], config["prefix"])
-            if not news_list:
-                st.error(f"⚠️ {name} connection issue.")
+            if not news_list: st.error(f"⚠️ {name} connection issue.")
             else:
                 for idx, item in enumerate(news_list, 1):
                     render_news(idx, item, name, name)
