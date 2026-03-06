@@ -3,7 +3,7 @@ import requests
 from bs4 import BeautifulSoup
 from deep_translator import GoogleTranslator
 
-# 1. Configuración de página
+# 1. Configuración de página - Indispensable al inicio
 st.set_page_config(page_title="Argy News for SEASA Employees", layout="wide", page_icon="📰")
 
 # --- CONFIGURACIÓN DE IA ---
@@ -11,8 +11,7 @@ API_TOKEN = st.secrets.get("HF_TOKEN", "")
 API_URL = "https://router.huggingface.co/hf-inference/models/facebook/bart-large-cnn"
 headers_ai = {"Authorization": f"Bearer {API_TOKEN}"}
 
-# --- MAPEO DE CATEGORÍAS Y RSS ---
-# Definimos los feeds específicos para cada sección
+# --- ENDPOINTS DE CATEGORÍAS (Híbridos y actualizados) ---
 CATEGORIES_RSS = {
     "POLITICS": {
         "Infobae": "https://www.infobae.com/feeds/rss/politica/",
@@ -32,49 +31,46 @@ CATEGORIES_RSS = {
         "Infobae": "https://www.infobae.com/feeds/rss/deportes/",
         "Clarín": "https://www.clarin.com/rss/deportes/",
         "La Nación": "https://www.lanacion.com.ar/arc/outboundfeeds/rss/category/deportes/?outputType=xml",
-        "TN": "https://tn.com.ar/rss/deportes/",
-        "Perfil": "https://www.perfil.com/rss/deportes.xml"
+        "TN": "https://tn.com.ar/rss/deportes/"
     },
-    "TECH & BUSINESS": {
+    "TECH & BIZ": {
         "Infobae": "https://www.infobae.com/feeds/rss/tecno/",
         "Clarín": "https://www.clarin.com/rss/tecnologia/",
         "Ámbito": "https://www.ambito.com/rss/pages/negocios.xml",
-        "TN": "https://tn.com.ar/rss/tecno/",
-        "La Nación": "https://www.lanacion.com.ar/arc/outboundfeeds/rss/category/tecnologia/?outputType=xml"
+        "TN": "https://tn.com.ar/rss/tecno/"
     }
 }
 
-SITES_GENERAL = {
-    "Infobae": {"url": "https://www.infobae.com", "rss": "https://www.infobae.com/feeds/rss/", "prefix": "https://www.infobae.com"},
-    "Clarín": {"url": "https://www.clarin.com", "rss": "https://www.clarin.com/rss/lo-ultimo/", "prefix": "https://www.clarin.com"},
-    "TN": {"url": "https://tn.com.ar", "rss": "https://tn.com.ar/rss.xml", "prefix": "https://tn.com.ar"},
-    "Ámbito": {"url": "https://www.ambito.com", "rss": "https://www.ambito.com/rss/pages/home.xml", "prefix": ""},
-    "La Nación": {"url": "https://www.lanacion.com.ar", "rss": "https://www.lanacion.com.ar/arc/outboundfeeds/rss/?outputType=xml", "prefix": "https://www.lanacion.com.ar"},
-    "BA Herald": {"url": "https://buenosairesherald.com", "rss": "https://buenosairesherald.com/feed", "prefix": ""},
-    "Perfil": {"url": "https://www.perfil.com", "rss": "https://www.perfil.com/rss/ultimo-momento.xml", "prefix": ""}
+SITES_INDIVIDUAL = {
+    "Infobae": {"url": "https://www.infobae.com/feeds/rss/", "prefix": "https://www.infobae.com"},
+    "Clarín": {"url": "https://www.clarin.com/rss/lo-ultimo/", "prefix": "https://www.clarin.com"},
+    "TN": {"url": "https://tn.com.ar/rss.xml", "prefix": "https://tn.com.ar"},
+    "Ámbito": {"url": "https://www.ambito.com/rss/pages/home.xml", "prefix": ""},
+    "La Nación": {"url": "https://www.lanacion.com.ar/arc/outboundfeeds/rss/?outputType=xml", "prefix": "https://www.lanacion.com.ar"},
+    "Perfil": {"url": "https://www.perfil.com/rss/ultimo-momento.xml", "prefix": ""}
 }
 
 # --- TRADUCCIONES ---
 LANG_PACK = {
     "en": {
         "title": "Argy News for SEASA Employees",
-        "subheader": "Top 5 news from each category, at a glance",
-        "refresh_btn": "Refresh News",
-        "loading": "AI is processing...",
+        "subheader": "Category-based insights at a glance",
+        "refresh_btn": "Refresh All Data",
+        "loading": "Connecting to news servers...",
         "read_more": "Read more",
         "ai_summary": "AI Summary",
-        "no_text": "Text too short.",
+        "no_text": "Content extraction failed.",
         "tabs_cat": ["🔥 Politics", "💰 Economy", "⚽ Sports", "🚀 Tech & Biz"]
     },
     "ko": {
         "title": "SEASA 임직원을 위한 Argy News",
-        "subheader": "카테고리별 주요 뉴스 5개를 한눈에 확인하세요",
-        "refresh_btn": "뉴스 새로고침",
-        "loading": "AI 처리 중...",
+        "subheader": "카테고리별 주요 뉴스를 확인하세요",
+        "refresh_btn": "데이터 새로고침",
+        "loading": "뉴스 서버에 연결 중...",
         "read_more": "자세히 보기",
         "ai_summary": "AI 요약",
-        "no_text": "텍스트가 너무 짧습니다.",
-        "tabs_cat": ["🔥 정치", "💰 경제", "⚽ 스포츠", "🚀 기술 및 비즈니스"]
+        "no_text": "콘텐츠를 가져올 수 없습니다.",
+        "tabs_cat": ["🔥 정치", "💰 경제", "⚽ 스포츠", "🚀 기술/비즈니스"]
     }
 }
 
@@ -86,36 +82,42 @@ def translate(text, target_lang):
     except: return text
 
 def query_ai_summarizer(text_en):
-    if not API_TOKEN: return "ERROR: No token found"
+    if not API_TOKEN: return "TOKEN_ERROR"
     clean_text = text_en.replace("\n", " ").strip()[:2500]
     payload = {"inputs": clean_text, "parameters": {"min_length": 40, "max_length": 140}, "options": {"wait_for_model": True}}
     try:
         response = requests.post(API_URL, headers=headers_ai, json=payload, timeout=40)
         if response.status_code == 200:
             result = response.json()
-            return result[0].get('summary_text', "Error")
-        return f"TECH_ERROR: {response.status_code}"
+            return result[0].get('summary_text', "Summarization error")
+        return f"AI_ERROR: {response.status_code}"
     except: return "CONNECTION_FAILED"
 
 @st.cache_data(ttl=3600)
 def get_body(url):
-    headers = {'User-Agent': 'Mozilla/5.0'}
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
     try:
-        r = requests.get(url, headers=headers, timeout=10)
+        r = requests.get(url, headers=headers, timeout=12)
         soup = BeautifulSoup(r.text, 'html.parser')
         paragraphs = soup.find_all('p')
-        text = " ".join([p.get_text().strip() for p in paragraphs if len(p.get_text()) > 80])
+        text = " ".join([p.get_text().strip() for p in paragraphs if len(p.get_text()) > 75])
         return text if len(text) > 300 else None
     except: return None
 
 @st.cache_data(ttl=300)
-def get_headlines_from_rss(rss_url):
+def fetch_news(rss_url):
     headers = {'User-Agent': 'Mozilla/5.0'}
     try:
-        r = requests.get(rss_url, headers=headers, timeout=10)
+        r = requests.get(rss_url, headers=headers, timeout=15)
         soup = BeautifulSoup(r.content, features="xml")
-        items = soup.find_all('item', limit=3) # Tomamos los primeros para asegurar relevancia
-        return [{"title": i.title.text.strip(), "link": i.link.text.strip()} for i in items if i.title and i.link]
+        items = soup.find_all('item', limit=5)
+        results = []
+        for i in items:
+            t_val = i.title.text.strip() if i.title else ""
+            l_val = i.link.text.strip() if i.link else ""
+            if t_val and l_val:
+                results.append({"title": t_val, "link": l_val})
+        return results
     except: return []
 
 # --- INTERFAZ ---
@@ -129,50 +131,50 @@ with c1:
     st.title(t["title"])
     st.subheader(t["subheader"])
 
-# Definimos las pestañas: Categorías primero, luego diarios individuales
-cat_list = list(CATEGORIES_RSS.keys())
-tabs = st.tabs(t["tabs_cat"] + list(SITES_GENERAL.keys()))
+# Generación de Tabs
+cat_names = list(CATEGORIES_RSS.keys())
+all_tabs = st.tabs(t["tabs_cat"] + list(SITES_INDIVIDUAL.keys()))
 
-def display_news_item(idx, news_obj, source_name, tab_key):
-    st.subheader(f"{idx}. {translate(news_obj['title'], lang)}")
-    st.caption(f"📰 {source_name} | 🔗 [{t['read_more']}]({news_obj['link']})")
-    if st.button(f"✨ {t['ai_summary']}", key=f"ai_{tab_key}_{idx}"):
+def render_news(idx, item, source, key_prefix):
+    st.subheader(f"{idx}. {translate(item['title'], lang)}")
+    st.caption(f"📰 {source} | 🔗 [{t['read_more']}]({item['link']})")
+    if st.button(f"✨ {t['ai_summary']}", key=f"btn_{key_prefix}_{idx}"):
         with st.spinner(t["loading"]):
-            body_es = get_body(news_obj['link'])
-            if body_es:
-                body_en = translate(body_es, 'en')
-                summary_en = query_ai_summarizer(body_en)
-                st.info(translate(summary_en, lang))
+            txt = get_body(item['link'])
+            if txt:
+                en_txt = translate(txt, 'en')
+                summary = query_ai_summarizer(en_txt)
+                st.info(translate(summary, lang))
             else: st.warning(t["no_text"])
     st.divider()
 
-# --- LÓGICA DE CATEGORÍAS (TABS 0 a 3) ---
-for i, cat_name in enumerate(cat_list):
-    with tabs[i]:
-        if st.button(t["refresh_btn"], key=f"ref_{cat_name}"):
+# 1. Pestañas de Categorías
+for i, cat in enumerate(cat_names):
+    with all_tabs[i]:
+        if st.button(t["refresh_btn"], key=f"re_{cat}"):
             st.cache_data.clear()
             st.rerun()
         
         with st.spinner(t["loading"]):
-            cat_news = []
-            for site, rss in CATEGORIES_RSS[cat_name].items():
-                h = get_headlines_from_rss(rss)
-                if h: cat_news.append({"source": site, "item": h[0]})
-            
-            # Mostramos las 5 más relevantes (una de cada diario)
-            for idx, entry in enumerate(cat_news[:5], 1):
-                display_news_item(idx, entry['item'], entry['source'], cat_name)
+            found_count = 1
+            for source, url in CATEGORIES_RSS[cat].items():
+                news = fetch_news(url)
+                if news:
+                    render_news(found_count, news[0], source, cat)
+                    found_count += 1
+                if found_count > 5: break
 
-# --- LÓGICA DE DIARIOS INDIVIDUALES (RESTO DE TABS) ---
-for i, (name, info) in enumerate(SITES_GENERAL.items(), len(cat_list)):
-    with tabs[i]:
-        if st.button(t["refresh_btn"], key=f"ref_{name}"):
+# 2. Pestañas de Medios Individuales
+for i, (name, info) in enumerate(SITES_INDIVIDUAL.items(), len(cat_names)):
+    with all_tabs[i]:
+        if st.button(t["refresh_btn"], key=f"re_{name}"):
             st.cache_data.clear()
             st.rerun()
-        
+            
         with st.spinner(t["loading"]):
-            headlines = get_headlines_from_rss(info['rss'])
-            if not headlines: st.warning("No news found.")
+            news_list = fetch_news(info['url'])
+            if not news_list:
+                st.warning(f"Unable to reach {name} at the moment.")
             else:
-                for idx, n in enumerate(headlines, 1):
-                    display_news_item(idx, n, name, name)
+                for idx, item in enumerate(news_list, 1):
+                    render_news(idx, item, name, name)
