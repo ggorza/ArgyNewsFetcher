@@ -4,8 +4,13 @@ from bs4 import BeautifulSoup
 from deep_translator import GoogleTranslator
 
 # --- CONFIGURACIÓN DE IA (HUGGING FACE) ---
-# Tu token ya está integrado aquí
-API_TOKEN = st.secrets["HF_TOKEN"]
+# Ahora la app es segura: no hay claves a la vista.
+try:
+    API_TOKEN = st.secrets["HF_TOKEN"]
+except:
+    st.error("Error: Key 'HF_TOKEN' not found in Secrets. Please check your Streamlit Cloud settings.")
+    st.stop()
+
 API_URL = "https://api-inference.huggingface.co/models/facebook/bart-large-cnn"
 headers_ai = {"Authorization": f"Bearer {API_TOKEN}"}
 
@@ -54,62 +59,27 @@ LANG_PACK = {
 def translate_text(text, target_lang):
     if not text or len(text) < 2: return text
     try:
+        # 'auto' detecta el idioma original y lo pasa al elegido
         return GoogleTranslator(source='auto', target=target_lang).translate(text)
     except:
         return text
 
 def query_ai_summarizer(text):
-    payload = {"inputs": text, "parameters": {"min_length": 40, "max_length": 120}}
+    payload = {"inputs": text, "parameters": {"min_length": 50, "max_length": 130}}
     try:
-        response = requests.post(API_URL, headers=headers_ai, json=payload, timeout=20)
-        # Hugging Face a veces tarda en cargar el modelo, manejamos el error 503
-        if response.status_code == 503:
-            return "Model is loading, please try again in 20 seconds."
+        response = requests.post(API_URL, headers=headers_ai, json=payload, timeout=25)
         
+        # Si el modelo está "durmiendo", Hugging Face devuelve un 503
+        if response.status_code == 503:
+            return "Wait a moment... AI model is loading. Try again in 20 seconds."
+            
         result = response.json()
         if isinstance(result, list) and 'summary_text' in result[0]:
             return result[0]['summary_text']
-    except:
+    except Exception as e:
         return None
     return None
 
 @st.cache_data(ttl=3600)
 def extract_article_text(url):
     headers = {'User-Agent': 'Mozilla/5.0'}
-    try:
-        response = requests.get(url, headers=headers, timeout=10)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        paragraphs = soup.find_all('p')
-        # Filtramos párrafos muy cortos que suelen ser publicidad
-        full_text = " ".join([p.get_text().strip() for p in paragraphs if len(p.get_text()) > 60])
-        return full_text[:4000] 
-    except:
-        return None
-
-@st.cache_data(ttl=300)
-def scrape_headlines(url, link_prefix):
-    headers = {'User-Agent': 'Mozilla/5.0'}
-    news_data = []
-    try:
-        response = requests.get(url, headers=headers, timeout=10)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        tags = soup.find_all(['h1', 'h2', 'h3'], limit=25)
-        for tag in tags:
-            a_tag = tag.find('a', href=True)
-            if a_tag:
-                title = a_tag.get_text().strip()
-                link = a_tag['href']
-                if not link.startswith('http'):
-                    link = link_prefix + link
-                if len(title) > 25:
-                    news_data.append({"title": title, "link": link})
-                    if len(news_data) == 5: break
-        return news_data
-    except:
-        return []
-
-# --- INTERFAZ ---
-st.set_page_config(page_title="ARG News AI Monitor", layout="wide")
-
-# Selector de idioma arriba a la derecha
-col_title, col_lang = st.columns([0.8, 0.2
