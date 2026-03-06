@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 from deep_translator import GoogleTranslator
 import feedparser
 
-# 1. Configuración de página
+# 1. Configuración de página - Título Final
 st.set_page_config(page_title="ARGY NEWS by gg", layout="wide", page_icon="📰")
 
 # --- CONFIGURACIÓN DE IA ---
@@ -12,7 +12,7 @@ API_TOKEN = st.secrets.get("HF_TOKEN", "")
 API_URL = "https://router.huggingface.co/hf-inference/models/facebook/bart-large-cnn"
 headers_ai = {"Authorization": f"Bearer {API_TOKEN}"}
 
-# --- CONFIGURACIÓN DE MEDIOS ---
+# --- CONFIGURACIÓN ESTRUCTURADA DE MEDIOS ---
 SITES_CONFIG = {
     "Infobae": {
         "prefix": "https://www.infobae.com",
@@ -115,17 +115,16 @@ def translate(text, target_lang):
 
 @st.cache_data(ttl=900)
 def get_twitter_trends():
-    """Obtiene los Trending Topics de Argentina mediante un bridge"""
+    """Obtiene tendencias de Argentina"""
     url = "https://getdaytrends.com/argentina/"
     headers = {'User-Agent': 'Mozilla/5.0'}
     try:
         r = requests.get(url, headers=headers, timeout=10)
         soup = BeautifulSoup(r.text, 'html.parser')
-        # Buscamos los links dentro de la tabla de tendencias
         trend_links = soup.select('td.ph a', limit=5)
         return [t.get_text() for t in trend_links]
     except:
-        return ["#Argentina", "#News", "#Tech", "#Economy", "#Sports"]
+        return [] # Retornamos vacío para que la UI maneje el fallo
 
 def query_ai_summarizer(text_en):
     if not API_TOKEN: return "ERROR: No token found"
@@ -189,12 +188,15 @@ t = LANG_PACK[lang]
 with c1:
     st.title(t["title"])
 
-# --- SECCIÓN DE TRENDING TOPICS (X/TWITTER) ---
+# --- SECCIÓN DE TRENDING TOPICS (Corregida) ---
 trends = get_twitter_trends()
-st.write(f"**{t['trends_title']}**")
-cols = st.columns(len(trends))
-for i, trend in enumerate(trends):
-    cols[i].markdown(f"`{trend}`")
+if trends:
+    st.write(f"**{t['trends_title']}**")
+    cols = st.columns(len(trends))
+    for i, trend in enumerate(trends):
+        cols[i].markdown(f"`{trend}`")
+else:
+    st.write("*(Trends temporarily unavailable)*")
 
 st.divider()
 
@@ -226,8 +228,11 @@ for i, cat in enumerate(cat_keys):
                 if cat in config["categories"]:
                     news = fetch_robust(config["categories"][cat]["rss"], config["categories"][cat]["web"], config["prefix"])
                     if news: cat_data.append({"source": name, "item": news[0]})
-            for idx, entry in enumerate(cat_data[:5], 1):
-                render_news(idx, entry['item'], entry['source'], cat)
+            if cat_data:
+                for idx, entry in enumerate(cat_data[:5], 1):
+                    render_news(idx, entry['item'], entry['source'], cat)
+            else:
+                st.info("No content available for this category right now.")
 
 # 2. Pestañas Individuales
 for i, (name, config) in enumerate(SITES_CONFIG.items(), len(cat_keys)):
