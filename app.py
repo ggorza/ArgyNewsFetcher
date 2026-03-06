@@ -3,7 +3,7 @@ import requests
 from bs4 import BeautifulSoup
 from deep_translator import GoogleTranslator
 
-# 1. Configuración de página - Actualizado con el nuevo nombre
+# 1. Configuración de página
 st.set_page_config(page_title="Argy News for SEASA Employees", layout="wide", page_icon="📰")
 
 # --- CONFIGURACIÓN DE IA ---
@@ -11,17 +11,18 @@ API_TOKEN = st.secrets.get("HF_TOKEN", "")
 API_URL = "https://router.huggingface.co/hf-inference/models/facebook/bart-large-cnn"
 headers_ai = {"Authorization": f"Bearer {API_TOKEN}"}
 
-# --- CONFIGURACIÓN DE MEDIOS ---
+# --- CONFIGURACIÓN DE MEDIOS (Actualizado para estabilidad) ---
 SITES = {
     "Infobae": {"url": "https://www.infobae.com", "rss": "https://www.infobae.com/feeds/rss/", "prefix": "https://www.infobae.com"},
     "Clarín": {"url": "https://www.clarin.com", "rss": "https://www.clarin.com/rss/lo-ultimo/", "prefix": "https://www.clarin.com"},
-    "Cronista": {"url": "https://www.cronista.com", "rss": "https://www.cronista.com/feeds/noticias.rss", "prefix": "https://www.cronista.com"},
+    "TN": {"url": "https://tn.com.ar", "rss": "https://tn.com.ar/rss.xml", "prefix": "https://tn.com.ar"},
+    "Ámbito": {"url": "https://www.ambito.com", "rss": "https://www.ambito.com/rss/pages/home.xml", "prefix": ""},
     "La Nación": {"url": "https://www.lanacion.com.ar", "rss": "https://www.lanacion.com.ar/arc/outboundfeeds/rss/?outputType=xml", "prefix": "https://www.lanacion.com.ar"},
     "BA Herald": {"url": "https://buenosairesherald.com", "rss": "https://buenosairesherald.com/feed", "prefix": ""},
     "Perfil": {"url": "https://www.perfil.com", "rss": "https://www.perfil.com/rss/ultimo-momento.xml", "prefix": ""}
 }
 
-# --- DICCIONARIO DE IDIOMAS (Actualizado con tu pedido) ---
+# --- TRADUCCIONES ---
 LANG_PACK = {
     "en": {
         "title": "Argy News for SEASA Employees",
@@ -32,7 +33,7 @@ LANG_PACK = {
         "read_more": "Read full article",
         "ai_summary": "AI Summary",
         "no_text": "Article text too short for AI.",
-        "no_news": "Could not find headlines."
+        "no_news": "Site temporarily unavailable."
     },
     "ko": {
         "title": "SEASA 임직원을 위한 Argy News",
@@ -43,7 +44,7 @@ LANG_PACK = {
         "read_more": "전체 기사 읽기",
         "ai_summary": "AI 요약",
         "no_text": "텍스트가 너무 짧습니다.",
-        "no_news": "뉴스를 찾을 수 없습니다."
+        "no_news": "현재 사이트를 사용할 수 없습니다."
     }
 }
 
@@ -64,12 +65,12 @@ def query_ai_summarizer(text_en):
             result = response.json()
             if isinstance(result, list) and len(result) > 0:
                 return result[0].get('summary_text', "Error: Unexpected format")
-        return f"TECH_ERROR: Code {response.status_code}"
+        return f"TECH_ERROR: {response.status_code}"
     except: return "CONNECTION_FAILED"
 
 @st.cache_data(ttl=3600)
 def get_body(url):
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'}
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
     try:
         r = requests.get(url, headers=headers, timeout=10)
         soup = BeautifulSoup(r.text, 'html.parser')
@@ -80,9 +81,9 @@ def get_body(url):
 
 @st.cache_data(ttl=300)
 def get_headlines(site_name, info):
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'}
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
     news = []
-    # Primero intentamos RSS por estabilidad (especialmente para Cronista)
+    # Usamos RSS de entrada por ser lo más estable para SEASA
     try:
         r = requests.get(info['rss'], headers=headers, timeout=10)
         soup = BeautifulSoup(r.content, features="xml")
@@ -94,7 +95,7 @@ def get_headlines(site_name, info):
                 news.append({"title": title, "link": link})
     except: pass
 
-    # Si el RSS falla, vamos al scraping tradicional
+    # Fallback a scraping si RSS no trae nada
     if not news:
         try:
             r = requests.get(info['url'], headers=headers, timeout=10)
@@ -103,7 +104,7 @@ def get_headlines(site_name, info):
             for link in links:
                 title = link.get_text().strip()
                 href = link['href']
-                if len(title) > 40 and not any(x in href.lower() for x in ['/autor/', '/tag/', '/usuario/', 'newsletter']):
+                if len(title) > 40 and not any(x in href.lower() for x in ['/autor/', '/tag/', '/usuario/']):
                     full_url = href if href.startswith('http') else info['prefix'] + href
                     if full_url not in [n['link'] for n in news]:
                         news.append({"title": title, "link": full_url})
@@ -133,10 +134,7 @@ def display_news_item(idx, news_obj, source_name, tab_key):
             if body_es:
                 body_en = translate(body_es, 'en')
                 summary_en = query_ai_summarizer(body_en)
-                if "TECH_ERROR" in summary_en:
-                    st.error(summary_en)
-                else:
-                    st.info(translate(summary_en, lang))
+                st.info(translate(summary_en, lang))
             else:
                 st.warning(t["no_text"])
     st.divider()
@@ -151,7 +149,7 @@ with tabs[0]:
         for name, info in SITES.items():
             h = get_headlines(name, info)
             if h: global_news.append({"source": name, "item": h[0]})
-        for i, entry in enumerate(global_news[:6], 1):
+        for i, entry in enumerate(global_news, 1):
             display_news_item(i, entry['item'], entry['source'], "global")
 
 # TABS INDIVIDUALES
