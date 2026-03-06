@@ -3,7 +3,7 @@ import requests
 from bs4 import BeautifulSoup
 from deep_translator import GoogleTranslator
 
-# 1. Configuración de página - SIEMPRE PRIMERO
+# 1. Configuración de página
 st.set_page_config(page_title="ARG News AI Monitor", layout="wide", page_icon="📰")
 
 # --- CONFIGURACIÓN DE IA ---
@@ -21,7 +21,7 @@ SITES = {
     "Perfil": {"url": "https://www.perfil.com", "prefix": ""}
 }
 
-# --- DICCIONARIO DE IDIOMAS ---
+# --- TRADUCCIONES ---
 LANG_PACK = {
     "en": {
         "title": "🇦🇷 ARG News AI Monitor",
@@ -47,7 +47,7 @@ LANG_PACK = {
     }
 }
 
-# --- FUNCIONES CORE ---
+# --- FUNCIONES ---
 
 def translate(text, target_lang):
     if not text or len(text) < 3: return text
@@ -70,13 +70,13 @@ def query_ai_summarizer(text_en):
             result = response.json()
             if isinstance(result, list) and len(result) > 0:
                 return result[0].get('summary_text', "Error: Unexpected format")
-        return f"TECH_ERROR: Code {response.status_code} - {response.text[:100]}"
+        return f"TECH_ERROR: Code {response.status_code}"
     except Exception as e:
         return f"CONNECTION_FAILED: {str(e)}"
 
 @st.cache_data(ttl=3600)
 def get_body(url):
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'}
     try:
         r = requests.get(url, headers=headers, timeout=10)
         soup = BeautifulSoup(r.text, 'html.parser')
@@ -90,26 +90,40 @@ def get_body(url):
 def get_headlines(url, prefix):
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
         'Accept-Language': 'es-ES,es;q=0.9'
     }
     news = []
     try:
-        r = requests.get(url, headers=headers, timeout=12)
+        r = requests.get(url, headers=headers, timeout=15)
         r.encoding = 'utf-8'
         soup = BeautifulSoup(r.text, 'html.parser')
+        
+        # BUSQUEDA ESPECIALIZADA
+        # 1. Intentamos con etiquetas de artículos (Muy común en Cronista)
+        articles = soup.find_all(['article', 'div'], class_=['news', 'piece', 'col', 'data'])
+        
+        # 2. Intentamos con los links clásicos h1-h3 y links con texto
         potential_tags = soup.find_all(['h1', 'h2', 'h3', 'a'], href=True)
+        
         for tag in potential_tags:
             a_tag = tag if tag.name == 'a' else tag.find('a', href=True)
             if not a_tag: continue
+            
             title = a_tag.get_text().strip()
             href = a_tag['href']
-            if len(title) > 30 and not any(x in href.lower() for x in ['/autor/', '/tag/', '/usuario/', 'newsletter']):
+            
+            # Filtro: títulos de más de 30 caracteres para Cronista
+            if len(title) > 30 and not any(x in href.lower() for x in ['/autor/', '/tag/', '/usuario/', 'newsletter', 'perfil-comercial']):
                 full_url = href if href.startswith('http') else prefix + href
                 if full_url not in [n['link'] for n in news]:
                     news.append({"title": title, "link": full_url})
+            
             if len(news) == 5: break
+            
         return news
-    except: return []
+    except Exception as e:
+        return []
 
 # --- INTERFAZ ---
 
@@ -125,13 +139,10 @@ with c1:
 
 tabs = st.tabs([t["global_tab"]] + list(SITES.keys()))
 
-# --- LÓGICA DE REUTILIZACIÓN PARA RENDERIZAR NOTICIAS ---
 def display_news_item(idx, news_obj, source_name, tab_key):
-    """Renderiza una noticia con su título, link y botón de IA"""
     st.subheader(f"{idx}. {translate(news_obj['title'], lang)}")
     st.caption(f"📰 {source_name} | 🔗 [{t['read_more']}]({news_obj['link']})")
     
-    # Botón de IA
     if st.button(f"✨ {t['ai_summary']}", key=f"ai_{tab_key}_{idx}"):
         with st.spinner(t["loading"]):
             body_es = get_body(news_obj['link'])
@@ -146,31 +157,25 @@ def display_news_item(idx, news_obj, source_name, tab_key):
                 st.warning(t["no_text"])
     st.divider()
 
-# 1. Pestaña Global (Hot Topics)
+# Tab Global
 with tabs[0]:
-    if st.button(t["refresh_btn"], key="btn_refresh_global"): 
+    if st.button(t["refresh_btn"], key="btn_gbl"): 
         st.cache_data.clear()
         st.rerun()
-    
     with st.spinner(t["loading"]):
-        # Obtenemos la primera noticia de cada diario
         global_news = []
         for name, info in SITES.items():
             h = get_headlines(info['url'], info['prefix'])
-            if h:
-                global_news.append({"source": name, "item": h[0]})
-        
-        # Las mostramos con el mismo look que el resto
+            if h: global_news.append({"source": name, "item": h[0]})
         for i, entry in enumerate(global_news[:6], 1):
             display_news_item(i, entry['item'], entry['source'], "global")
 
-# 2. Pestañas Individuales
+# Tabs Individuales
 for i, (name, info) in enumerate(SITES.items(), 1):
     with tabs[i]:
-        if st.button(t["refresh_btn"], key=f"btn_refresh_{name}"):
+        if st.button(t["refresh_btn"], key=f"btn_{name}"):
             st.cache_data.clear()
             st.rerun()
-        
         headlines = get_headlines(info['url'], info['prefix'])
         if not headlines:
             st.warning(t["no_news"])
