@@ -5,7 +5,7 @@ from deep_translator import GoogleTranslator
 
 # --- CONFIGURACIÓN DE IA (HUGGING FACE) ---
 # Tu token ya está integrado aquí
-API_TOKEN = "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" 
+API_TOKEN = st.secrets["HF_TOKEN"]
 API_URL = "https://api-inference.huggingface.co/models/facebook/bart-large-cnn"
 headers_ai = {"Authorization": f"Bearer {API_TOKEN}"}
 
