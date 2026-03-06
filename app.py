@@ -115,16 +115,32 @@ def translate(text, target_lang):
 
 @st.cache_data(ttl=900)
 def get_twitter_trends():
-    """Obtiene tendencias de Argentina"""
-    url = "https://getdaytrends.com/argentina/"
-    headers = {'User-Agent': 'Mozilla/5.0'}
+    """Lógica de Doble Nodo para Trending Topics"""
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+    }
+    
+    # INTENTO 1: GetDayTrends
     try:
-        r = requests.get(url, headers=headers, timeout=10)
-        soup = BeautifulSoup(r.text, 'html.parser')
-        trend_links = soup.select('td.ph a', limit=5)
-        return [t.get_text() for t in trend_links]
-    except:
-        return [] # Retornamos vacío para que la UI maneje el fallo
+        r = requests.get("https://getdaytrends.com/argentina/", headers=headers, timeout=8)
+        if r.status_code == 200:
+            soup = BeautifulSoup(r.text, 'html.parser')
+            trends = [t.get_text() for t in soup.select('td.ph a', limit=5)]
+            if trends: return trends
+    except: pass
+    
+    # INTENTO 2: Trends24 (Fallback)
+    try:
+        r = requests.get("https://trends24.in/argentina/", headers=headers, timeout=8)
+        if r.status_code == 200:
+            soup = BeautifulSoup(r.text, 'html.parser')
+            # Trends24 usa una estructura distinta
+            trends = [t.get_text() for t in soup.select('ol.trend-card__list li a', limit=5)]
+            if trends: return trends
+    except: pass
+    
+    return []
 
 def query_ai_summarizer(text_en):
     if not API_TOKEN: return "ERROR: No token found"
@@ -188,15 +204,17 @@ t = LANG_PACK[lang]
 with c1:
     st.title(t["title"])
 
-# --- SECCIÓN DE TRENDING TOPICS (Corregida) ---
+# --- SECCIÓN DE TRENDING TOPICS ---
 trends = get_twitter_trends()
 if trends:
     st.write(f"**{t['trends_title']}**")
     cols = st.columns(len(trends))
     for i, trend in enumerate(trends):
-        cols[i].markdown(f"`{trend}`")
+        # Limpiamos el texto por si trae basura de los selectores
+        clean_trend = trend.split('\n')[0].strip()
+        cols[i].markdown(f"`{clean_trend}`")
 else:
-    st.write("*(Trends temporarily unavailable)*")
+    st.write("*(Trends temporarily unavailable - Check connection)*")
 
 st.divider()
 
@@ -232,7 +250,7 @@ for i, cat in enumerate(cat_keys):
                 for idx, entry in enumerate(cat_data[:5], 1):
                     render_news(idx, entry['item'], entry['source'], cat)
             else:
-                st.info("No content available for this category right now.")
+                st.info("No content available.")
 
 # 2. Pestañas Individuales
 for i, (name, config) in enumerate(SITES_CONFIG.items(), len(cat_keys)):
