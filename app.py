@@ -4,8 +4,8 @@ from bs4 import BeautifulSoup
 from deep_translator import GoogleTranslator
 import feedparser
 
-# 1. Configuración de página - Indispensable
-st.set_page_config(page_title="Argy News for SEASA Employees", layout="wide", page_icon="📰")
+# 1. Configuración de página - Título actualizado
+st.set_page_config(page_title="ARGY NEWS by gg", layout="wide", page_icon="📰")
 
 # --- CONFIGURACIÓN DE IA ---
 API_TOKEN = st.secrets.get("HF_TOKEN", "")
@@ -87,8 +87,7 @@ SITES_CONFIG = {
 # --- TRADUCCIONES ---
 LANG_PACK = {
     "en": {
-        "title": "Argy News for SEASA Employees",
-        "subheader": "Top 5 news from each category, at a glance",
+        "title": "ARGY NEWS by gg",
         "refresh_btn": "Full Data Reset",
         "loading": "Processing...",
         "read_more": "Read more",
@@ -97,9 +96,8 @@ LANG_PACK = {
         "tabs_cat": ["🌏 World", "🔥 Politics", "💰 Economy", "⚽ Sports", "🚀 Tech & Biz"]
     },
     "ko": {
-        "title": "SEASA 임직원을 위한 Argy News",
-        "subheader": "카테고리별 주요 뉴스 5개를 한눈에 확인하세요",
-        "refresh_btn": "전체 데이터 초기화",
+        "title": "ARGY NEWS by gg",
+        "refresh_btn": "데이터 초기화",
         "loading": "처리 중...",
         "read_more": "자세히 보기",
         "ai_summary": "AI 요약",
@@ -133,7 +131,6 @@ def fetch_robust(url_rss, url_web, prefix):
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         'Referer': 'https://www.google.com/'
     }
-    # 1. RSS First
     try:
         r = requests.get(url_rss, headers=headers, timeout=10)
         if r.status_code == 200:
@@ -141,7 +138,6 @@ def fetch_robust(url_rss, url_web, prefix):
             if feed.entries:
                 return [{"title": e.title, "link": e.link} for e in feed.entries[:5]]
     except: pass
-    # 2. Web Scraping Fallback (de la SECCIÓN específica)
     try:
         r = requests.get(url_web, headers=headers, timeout=10)
         if r.status_code == 200:
@@ -181,7 +177,6 @@ t = LANG_PACK[lang]
 
 with c1:
     st.title(t["title"])
-    st.subheader(t["subheader"])
 
 cat_keys = ["WORLD", "POLITICS", "ECONOMY", "SPORTS", "TECH & BIZ"]
 tabs = st.tabs(t["tabs_cat"] + list(SITES_CONFIG.keys()))
@@ -224,7 +219,7 @@ for i, (name, config) in enumerate(SITES_CONFIG.items(), len(cat_keys)):
         with st.spinner(t["loading"]):
             news_list = fetch_robust(config["rss_home"], config["prefix"], config["prefix"])
             if not news_list:
-                st.error(f"⚠️ {name} connection issue. Reset data.")
+                st.error(f"⚠️ {name} connection issue.")
             else:
                 for idx, item in enumerate(news_list, 1):
                     render_news(idx, item, name, name)
