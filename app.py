@@ -6,10 +6,11 @@ from deep_translator import GoogleTranslator
 # 1. Configuración de página
 st.set_page_config(page_title="ARG News AI Monitor", layout="wide", page_icon="📰")
 
-# --- CONFIGURACIÓN DE IA ---
+# --- CONFIGURACIÓN DE IA (URL ACTUALIZADA) ---
 API_TOKEN = st.secrets.get("HF_TOKEN", "")
-# Probamos con un modelo alternativo que suele estar más disponible
-API_URL = "https://api-inference.huggingface.co/models/facebook/bart-large-cnn"
+
+# Usamos el nuevo endpoint "router" que solicita Hugging Face
+API_URL = "https://router.huggingface.co/hf-inference/models/facebook/bart-large-cnn"
 headers_ai = {"Authorization": f"Bearer {API_TOKEN}"}
 
 # --- CONFIGURACIÓN DE MEDIOS ---
@@ -59,26 +60,24 @@ def query_ai_summarizer(text):
     if not API_TOKEN: return "ERROR: No token found in Secrets"
     
     clean_text = text.replace("\n", " ").strip()[:3000]
-    payload = {"inputs": clean_text, "parameters": {"min_length": 50, "max_length": 150}}
+    payload = {
+        "inputs": clean_text, 
+        "parameters": {"min_length": 50, "max_length": 150},
+        "options": {"wait_for_model": True} # Obliga a esperar si el modelo está cargando
+    }
     
     try:
-        response = requests.post(API_URL, headers=headers_ai, json=payload, timeout=30)
+        response = requests.post(API_URL, headers=headers_ai, json=payload, timeout=40)
         
-        # DEBUG: Si no es 200, devolvemos el error técnico
-        if response.status_code != 200:
-            return f"TECH_ERROR: Code {response.status_code} - {response.text}"
+        if response.status_code == 200:
+            result = response.json()
+            if isinstance(result, list) and len(result) > 0:
+                return result[0].get('summary_text', "Unexpected result format")
+            return "Could not generate summary."
         
-        result = response.json()
+        # Si sigue fallando, mostramos el error técnico para saber qué pasa
+        return f"TECH_ERROR: Code {response.status_code} - {response.text}"
         
-        # Si el resultado es una lista (formato correcto de BART)
-        if isinstance(result, list) and len(result) > 0 and 'summary_text' in result[0]:
-            return result[0]['summary_text']
-        
-        # Si el modelo está cargando (a veces devuelve un dict con 'error')
-        if isinstance(result, dict) and "error" in result:
-            return f"AI_BUSY: {result['error']}"
-            
-        return f"UNEXPECTED_FORMAT: {str(result)[:100]}"
     except Exception as e:
         return f"CONNECTION_FAILED: {str(e)}"
 
@@ -88,10 +87,9 @@ def get_body(url):
     try:
         r = requests.get(url, headers=headers, timeout=10)
         soup = BeautifulSoup(r.text, 'html.parser')
-        # Buscamos párrafos con contenido real
         paragraphs = soup.find_all('p')
         text = " ".join([p.get_text().strip() for p in paragraphs if len(p.get_text()) > 70])
-        return text if len(text) > 250 else None
+        return text if len(text) > 300 else None
     except:
         return None
 
@@ -106,7 +104,8 @@ def get_headlines(url, prefix):
         for link in links:
             title = link.get_text().strip()
             href = link['href']
-            if len(title) > 40 and not any(x in href for x in ['/autor/', '/tag/', '/usuario/']):
+            # Filtro para títulos relevantes
+            if len(title) > 45 and not any(x in href for x in ['/autor/', '/tag/', '/usuario/', 'newsletter']):
                 full_url = href if href.startswith('http') else prefix + href
                 if full_url not in [n['link'] for n in news]:
                     news.append({"title": title, "link": full_url})
@@ -117,7 +116,7 @@ def get_headlines(url, prefix):
 # --- INTERFAZ ---
 c1, c2 = st.columns([0.8, 0.2])
 with c2:
-    lang_choice = st.selectbox("", ["🇺🇸 English", "🇰🇷 한국어"])
+    lang_choice = st.selectbox("", ["🇺🇸 English", "🇰🇷 한국어"], label_visibility="collapsed")
     lang = "en" if "English" in lang_choice else "ko"
 t = LANG_PACK[lang]
 
@@ -133,6 +132,7 @@ with tabs[0]:
         st.cache_data.clear()
         st.rerun()
     with st.spinner(t["loading"]):
+        global_news = []
         for name, info in SITES.items():
             h = get_headlines(info['url'], info['prefix'])
             if h:
@@ -159,8 +159,7 @@ for i, (name, info) in enumerate(SITES.items(), 1):
                     body = get_body(n['link'])
                     if body:
                         res = query_ai_summarizer(body)
-                        # Mostramos el resultado sea cual sea (para debug)
-                        if "TECH_ERROR" in res or "AI_BUSY" in res or "CONNECTION" in res:
+                        if "TECH_ERROR" in res or "CONNECTION" in res:
                             st.error(res)
                         else:
                             st.info(translate(res, lang))
