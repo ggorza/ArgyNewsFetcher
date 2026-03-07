@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 from deep_translator import GoogleTranslator
 import feedparser
 
-# 1. Configuración de página - Título Final
+# 1. Configuración de página
 st.set_page_config(page_title="ARGY NEWS by gg", layout="wide", page_icon="📰")
 
 # --- CONFIGURACIÓN DE IA ---
@@ -12,7 +12,7 @@ API_TOKEN = st.secrets.get("HF_TOKEN", "")
 API_URL = "https://router.huggingface.co/hf-inference/models/facebook/bart-large-cnn"
 headers_ai = {"Authorization": f"Bearer {API_TOKEN}"}
 
-# --- CONFIGURACIÓN ESTRUCTURADA DE MEDIOS ---
+# --- CONFIGURACIÓN DE MEDIOS ---
 SITES_CONFIG = {
     "Infobae": {
         "prefix": "https://www.infobae.com",
@@ -88,7 +88,9 @@ SITES_CONFIG = {
 LANG_PACK = {
     "en": {
         "title": "ARGY NEWS by gg",
-        "trends_title": "Trending in 🇦🇷",
+        "trends_ar": "Trending in Argentina 🇦🇷",
+        "trends_kr": "Trending in Korea 🇰🇷",
+        "trends_world": "Trending in World 🌎",
         "refresh_btn": "Full Data Reset",
         "loading": "Processing...",
         "read_more": "Read more",
@@ -97,7 +99,9 @@ LANG_PACK = {
     },
     "ko": {
         "title": "ARGY NEWS by gg",
-        "trends_title": "아르헨티나 트렌드 🇦🇷",
+        "trends_ar": "아르헨티나 트렌드 🇦🇷",
+        "trends_kr": "대한민국 트렌드 🇰🇷",
+        "trends_world": "글로벌 트렌드 🌎",
         "refresh_btn": "데이터 초기화",
         "loading": "처리 중...",
         "read_more": "자세히 보기",
@@ -114,29 +118,39 @@ def translate(text, target_lang):
     except: return text
 
 @st.cache_data(ttl=900)
-def get_twitter_trends():
-    """Lógica de Doble Nodo para Trending Topics"""
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+def get_trends(region):
+    """
+    Obtiene tendencias globales usando Doble Nodo.
+    Region mapping para GetDayTrends y Trends24.
+    """
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+    
+    # Mapeo de slugs según el sitio
+    slugs = {
+        "AR": {"gdt": "argentina", "t24": "argentina"},
+        "KR": {"gdt": "south-korea", "t24": "south-korea"},
+        "WD": {"gdt": "world", "t24": ""} # Trends24 home es global
     }
     
-    # INTENTO 1: GetDayTrends
+    s = slugs[region]
+    
+    # NODO 1: GetDayTrends
     try:
-        r = requests.get("https://getdaytrends.com/argentina/", headers=headers, timeout=8)
+        url = f"https://getdaytrends.com/{s['gdt']}/"
+        r = requests.get(url, headers=headers, timeout=8)
         if r.status_code == 200:
             soup = BeautifulSoup(r.text, 'html.parser')
-            trends = [t.get_text() for t in soup.select('td.ph a', limit=5)]
+            trends = [t.get_text().split('\n')[0].strip() for t in soup.select('td.ph a', limit=5)]
             if trends: return trends
     except: pass
     
-    # INTENTO 2: Trends24 (Fallback)
+    # NODO 2: Trends24 (Fallback)
     try:
-        r = requests.get("https://trends24.in/argentina/", headers=headers, timeout=8)
+        url = f"https://trends24.in/{s['t24']}"
+        r = requests.get(url, headers=headers, timeout=8)
         if r.status_code == 200:
             soup = BeautifulSoup(r.text, 'html.parser')
-            # Trends24 usa una estructura distinta
-            trends = [t.get_text() for t in soup.select('ol.trend-card__list li a', limit=5)]
+            trends = [t.get_text().split('\n')[0].strip() for t in soup.select('ol.trend-card__list li a', limit=5)]
             if trends: return trends
     except: pass
     
@@ -204,17 +218,22 @@ t = LANG_PACK[lang]
 with c1:
     st.title(t["title"])
 
-# --- SECCIÓN DE TRENDING TOPICS ---
-trends = get_twitter_trends()
-if trends:
-    st.write(f"**{t['trends_title']}**")
-    cols = st.columns(len(trends))
-    for i, trend in enumerate(trends):
-        # Limpiamos el texto por si trae basura de los selectores
-        clean_trend = trend.split('\n')[0].strip()
-        cols[i].markdown(f"`{clean_trend}`")
-else:
-    st.write("*(Trends temporarily unavailable - Check connection)*")
+# --- SECCIÓN DE TRENDING TOPICS (AR, KR, World) ---
+regions = [
+    {"id": "AR", "label": t["trends_ar"]},
+    {"id": "KR", "label": t["trends_kr"]},
+    {"id": "WD", "label": t["trends_world"]}
+]
+
+for reg in regions:
+    trends = get_trends(reg["id"])
+    if trends:
+        st.write(f"**{reg['label']}**")
+        cols = st.columns(len(trends))
+        for i, trend in enumerate(trends):
+            cols[i].markdown(f"`{trend}`")
+    else:
+        st.write(f"*{reg['label']} temporarily unavailable*")
 
 st.divider()
 
