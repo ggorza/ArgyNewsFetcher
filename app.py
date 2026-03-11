@@ -4,8 +4,8 @@ from bs4 import BeautifulSoup
 from deep_translator import GoogleTranslator
 import feedparser
 
-# 1. Configuración de página
-st.set_page_config(page_title="ARGY NEWS by gg", layout="wide", page_icon="📰")
+# 1. Configuración de página - Título Profesional
+st.set_page_config(page_title="Argentina Top News", layout="wide", page_icon="📰")
 
 # --- CONFIGURACIÓN DE IA ---
 API_TOKEN = st.secrets.get("HF_TOKEN", "")
@@ -18,7 +18,7 @@ RELATED_KEYWORDS = [
     "TCL", "PHILCO", "NOBLEX", "ENOVA", "BGH", "SONY", "ALCATEL"
 ]
 
-# --- CONFIGURACIÓN DE MEDIOS (Actualizado con iProup, Enretail y CanalAR) ---
+# --- CONFIGURACIÓN DE MEDIOS ---
 SITES_CONFIG = {
     "Infobae": {
         "prefix": "https://www.infobae.com",
@@ -105,7 +105,8 @@ SITES_CONFIG = {
 # --- TRADUCCIONES ---
 LANG_PACK = {
     "en": {
-        "title": "ARGY NEWS by gg",
+        "title": "Argentina Top News",
+        "subtitle": "Realtime Argentina news scrapper with AI summarizer",
         "refresh_btn": "Full Data Reset",
         "loading": "Processing...",
         "read_more": "Read more",
@@ -116,7 +117,8 @@ LANG_PACK = {
         "tabs_cat": ["📱 SAMSUNG", "🔗 RELATED", "🌏 World", "🔥 Politics", "💰 Economy", "⚽ Sports", "🚀 Tech & Biz"]
     },
     "ko": {
-        "title": "ARGY NEWS by gg",
+        "title": "아르헨티나 주요 뉴스",
+        "subtitle": "AI 요약 기능이 포함된 실시간 아르헨티나 뉴스 스크래퍼",
         "refresh_btn": "데이터 초기화",
         "loading": "처리 중...",
         "read_more": "자세히 보기",
@@ -196,6 +198,7 @@ t = LANG_PACK[lang]
 
 with c1:
     st.title(t["title"])
+    st.subheader(t["subtitle"])
 
 st.divider()
 
