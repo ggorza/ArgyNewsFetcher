@@ -51,6 +51,7 @@ SITES_CONFIG = {
         "prefix": "https://www.ambito.com",
         "rss_home": "https://www.ambito.com/rss/pages/home.xml",
         "categories": {
+            "WORLD": {"rss": "https://www.ambito.com/rss/pages/mundo.xml", "web": "https://www.ambito.com/contenidos/mundo.html"},
             "ECONOMY": {"rss": "https://www.ambito.com/rss/pages/economia.xml", "web": "https://www.ambito.com/contenidos/economia.html"},
             "TECH & BIZ": {"rss": "https://www.ambito.com/rss/pages/negocios.xml", "web": "https://www.ambito.com/contenidos/negocios.html"}
         }
@@ -97,6 +98,7 @@ LANG_PACK = {
         "read_more": "Read more",
         "ai_summary": "AI Summary",
         "no_text": "Text blocked or too short.",
+        "no_samsung": "No Samsung news found in the last few hours. Searched in: {sources}",
         "tabs_cat": ["📱 SAMSUNG", "🌏 World", "🔥 Politics", "💰 Economy", "⚽ Sports", "🚀 Tech & Biz"]
     },
     "ko": {
@@ -106,6 +108,7 @@ LANG_PACK = {
         "read_more": "자세히 보기",
         "ai_summary": "AI 요약",
         "no_text": "텍스트가 너무 짧습니다.",
+        "no_samsung": "최근 몇 시간 동안 삼성 관련 뉴스가 없습니다. 검색된 매체: {sources}",
         "tabs_cat": ["📱 삼성", "🌏 국제", "🔥 정치", "💰 경제", "⚽ 스포츠", "🚀 기술/비즈니스"]
     }
 }
@@ -181,7 +184,6 @@ with c1:
 
 st.divider()
 
-# Orden de las pestañas
 cat_keys = ["SAMSUNG", "WORLD", "POLITICS", "ECONOMY", "SPORTS", "TECH & BIZ"]
 tabs = st.tabs(t["tabs_cat"] + list(SITES_CONFIG.keys()))
 
@@ -209,23 +211,26 @@ for i, cat in enumerate(cat_keys):
             cat_data = []
             
             if cat == "SAMSUNG":
-                # Lógica especial: Buscar "SAMSUNG" en TODOS los medios
+                # Guardamos los nombres de los medios consultados
+                searched_sites = list(SITES_CONFIG.keys())
                 for name, config in SITES_CONFIG.items():
                     news = fetch_robust(config["rss_home"], config["prefix"], config["prefix"])
                     for n in news:
                         if "SAMSUNG" in n['title'].upper():
                             cat_data.append({"source": name, "item": n})
+                
                 if not cat_data:
-                    st.info("No Samsung news found in the last few hours.")
+                    # Mensaje explícito con la lista de medios
+                    sources_str = ", ".join(searched_sites)
+                    st.info(t["no_samsung"].format(sources=sources_str))
             else:
-                # Lógica normal por categorías
                 for name, config in SITES_CONFIG.items():
                     if cat in config["categories"]:
                         news = fetch_robust(config["categories"][cat]["rss"], config["categories"][cat]["web"], config["prefix"])
                         if news:
                             cat_data.append({"source": name, "item": news[0]})
             
-            for idx, entry in enumerate(cat_data[:10], 1): # Mostramos hasta 10 de Samsung
+            for idx, entry in enumerate(cat_data[:10], 1):
                 render_news(idx, entry['item'], entry['source'], cat)
 
 # 2. Pestañas de Medios Individuales
