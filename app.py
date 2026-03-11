@@ -12,13 +12,13 @@ API_TOKEN = st.secrets.get("HF_TOKEN", "")
 API_URL = "https://router.huggingface.co/hf-inference/models/facebook/bart-large-cnn"
 headers_ai = {"Authorization": f"Bearer {API_TOKEN}"}
 
-# --- LISTA DE COMPETENCIA Y PROVEEDORES (Keywords) ---
+# --- KEYWORDS DE COMPETENCIA Y PROVEEDORES ---
 RELATED_KEYWORDS = [
     "NEWSAN", "MIRGOR", "VISUAR", "LG", "MOTOROLA", "XIAOMI", 
     "TCL", "PHILCO", "NOBLEX", "ENOVA", "BGH", "SONY", "ALCATEL"
 ]
 
-# --- CONFIGURACIÓN ESTRUCTURADA DE MEDIOS ---
+# --- CONFIGURACIÓN DE MEDIOS (Cronista eliminado por inestabilidad) ---
 SITES_CONFIG = {
     "Infobae": {
         "prefix": "https://www.infobae.com",
@@ -85,13 +85,6 @@ SITES_CONFIG = {
         "categories": {
             "ECONOMY": {"rss": "https://www.pagina12.com.ar/rss/secciones/economia", "web": "https://www.pagina12.com.ar/secciones/economia"}
         }
-    },
-    "Cronista": {
-        "prefix": "https://www.cronista.com",
-        "rss_home": "https://www.cronista.com/feeds/noticias.rss",
-        "categories": {
-            "ECONOMY": {"rss": "https://www.cronista.com/feeds/noticias.rss", "web": "https://www.cronista.com/economia-politica/"}
-        }
     }
 }
 
@@ -105,7 +98,7 @@ LANG_PACK = {
         "ai_summary": "AI Summary",
         "no_text": "Text blocked or too short.",
         "no_samsung": "No direct Samsung news found. Searched in: {sources}",
-        "no_related": "No news found for partners or competitors (Newsan, LG, etc.).",
+        "no_related": "No news found for partners or competitors.",
         "tabs_cat": ["📱 SAMSUNG", "🔗 RELATED", "🌏 World", "🔥 Politics", "💰 Economy", "⚽ Sports", "🚀 Tech & Biz"]
     },
     "ko": {
@@ -116,7 +109,7 @@ LANG_PACK = {
         "ai_summary": "AI 요약",
         "no_text": "텍스트가 너무 짧습니다.",
         "no_samsung": "삼성 관련 뉴스가 없습니다. 검색 매체: {sources}",
-        "no_related": "파트너 및 경쟁사(Newsan, LG 등) 관련 뉴스가 없습니다.",
+        "no_related": "파트너 및 경쟁사 관련 뉴스가 없습니다.",
         "tabs_cat": ["📱 삼성", "🔗 관련사", "🌏 국제", "🔥 정치", "💰 경제", "⚽ 스포츠", "🚀 기술/비즈니스"]
     }
 }
@@ -192,7 +185,6 @@ with c1:
 
 st.divider()
 
-# Orden de las pestañas actualizado
 cat_keys = ["SAMSUNG", "SAMSUNG_RELATED", "WORLD", "POLITICS", "ECONOMY", "SPORTS", "TECH & BIZ"]
 tabs = st.tabs(t["tabs_cat"] + list(SITES_CONFIG.keys()))
 
@@ -209,16 +201,14 @@ def render_news(idx, item, source, key_prefix):
             else: st.warning(t["no_text"])
     st.divider()
 
-# --- LÓGICA DE RENDERIZADO POR PESTAÑAS ---
+# --- LÓGICA DE CATEGORÍAS ---
 for i, cat in enumerate(cat_keys):
     with tabs[i]:
         if st.button(t["refresh_btn"], key=f"re_{cat}"):
             st.cache_data.clear()
             st.rerun()
-        
         with st.spinner(t["loading"]):
             cat_data = []
-            
             if cat == "SAMSUNG":
                 searched_sites = list(SITES_CONFIG.keys())
                 for name, config in SITES_CONFIG.items():
@@ -228,34 +218,25 @@ for i, cat in enumerate(cat_keys):
                             cat_data.append({"source": name, "item": n})
                 if not cat_data:
                     st.info(t["no_samsung"].format(sources=", ".join(searched_sites)))
-            
             elif cat == "SAMSUNG_RELATED":
-                # Escaneamos todos los medios buscando competencia y proveedores
                 for name, config in SITES_CONFIG.items():
                     news = fetch_robust(config["rss_home"], config["prefix"], config["prefix"])
                     for n in news:
                         title_upper = n['title'].upper()
-                        # Verificamos si alguna keyword relacionada está en el título
                         if any(k in title_upper for k in RELATED_KEYWORDS):
-                            # Evitamos duplicar con la pestaña de Samsung si ya dice Samsung
                             if "SAMSUNG" not in title_upper:
                                 cat_data.append({"source": name, "item": n})
                 if not cat_data:
                     st.info(t["no_related"])
-
             else:
-                # Lógica normal de categorías
                 for name, config in SITES_CONFIG.items():
                     if cat in config["categories"]:
                         news = fetch_robust(config["categories"][cat]["rss"], config["categories"][cat]["web"], config["prefix"])
-                        if news:
-                            cat_data.append({"source": name, "item": news[0]})
-            
-            # Renderizamos los resultados (limitado a 10 para no saturar)
+                        if news: cat_data.append({"source": name, "item": news[0]})
             for idx, entry in enumerate(cat_data[:10], 1):
                 render_news(idx, entry['item'], entry['source'], cat)
 
-# --- PESTAÑAS DE MEDIOS INDIVIDUALES ---
+# --- PESTAÑAS INDIVIDUALES ---
 for i, (name, config) in enumerate(SITES_CONFIG.items(), len(cat_keys)):
     with tabs[i]:
         if st.button(t["refresh_btn"], key=f"re_{name}"):
