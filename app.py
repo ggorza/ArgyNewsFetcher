@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 from deep_translator import GoogleTranslator
 import feedparser
 
-# 1. Configuración de página - Título Profesional
+# 1. Configuración de página
 st.set_page_config(page_title="Argentina Top News", layout="wide", page_icon="📰")
 
 # --- CONFIGURACIÓN DE IA ---
@@ -102,7 +102,7 @@ SITES_CONFIG = {
     }
 }
 
-# --- TRADUCCIONES ---
+# --- DICCIONARIO DE IDIOMAS (Actualizado con Español) ---
 LANG_PACK = {
     "en": {
         "title": "Argentina Top News",
@@ -115,6 +115,18 @@ LANG_PACK = {
         "no_samsung": "No direct Samsung news found. Checked in: {sources}",
         "no_related": "No news found for partners or competitors.",
         "tabs_cat": ["📱 SAMSUNG", "🔗 RELATED", "🌏 World", "🔥 Politics", "💰 Economy", "⚽ Sports", "🚀 Tech & Biz"]
+    },
+    "es": {
+        "title": "Argentina Top News",
+        "subtitle": "Escáner de noticias de Argentina en tiempo real con resúmenes por IA",
+        "refresh_btn": "Resetear Datos",
+        "loading": "Procesando...",
+        "read_more": "Leer más",
+        "ai_summary": "Resumen IA",
+        "no_text": "Contenido bloqueado o muy corto.",
+        "no_samsung": "No se hallaron noticias de Samsung. Buscado en: {sources}",
+        "no_related": "No se hallaron noticias de socios o competencia.",
+        "tabs_cat": ["📱 SAMSUNG", "🔗 RELACIONADOS", "🌏 Mundo", "🔥 Política", "💰 Economía", "⚽ Deportes", "🚀 Tech & Biz"]
     },
     "ko": {
         "title": "아르헨티나 주요 뉴스",
@@ -190,10 +202,12 @@ def get_body(url):
     except: return None
 
 # --- INTERFAZ ---
-c1, c2 = st.columns([0.8, 0.2])
+c1, c2 = st.columns([0.7, 0.3]) # Un poco más de espacio para los selectores
 with c2:
-    lang_choice = st.selectbox("", ["🇺🇸 English", "🇰🇷 한국어"], label_visibility="collapsed")
-    lang = "en" if "English" in lang_choice else "ko"
+    # El orden aquí define el default (English primero)
+    lang_choice = st.selectbox("", ["🇺🇸 English", "🇪🇸 Español", "🇰🇷 한국어"], label_visibility="collapsed")
+    lang_map = {"🇺🇸 English": "en", "🇪🇸 Español": "es", "🇰🇷 한국어": "ko"}
+    lang = lang_map[lang_choice]
 t = LANG_PACK[lang]
 
 with c1:
