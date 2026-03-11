@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 from deep_translator import GoogleTranslator
 import feedparser
 
-# 1. Configuración de página - Título Final
+# 1. Configuración de página - Título Minimalista
 st.set_page_config(page_title="ARGY NEWS by gg", layout="wide", page_icon="📰")
 
 # --- CONFIGURACIÓN DE IA ---
@@ -88,20 +88,20 @@ SITES_CONFIG = {
 LANG_PACK = {
     "en": {
         "title": "ARGY NEWS by gg",
-        "trends_title": "Trending in 🇦🇷",
         "refresh_btn": "Full Data Reset",
         "loading": "Processing...",
         "read_more": "Read more",
         "ai_summary": "AI Summary",
+        "no_text": "Text blocked or too short.",
         "tabs_cat": ["🌏 World", "🔥 Politics", "💰 Economy", "⚽ Sports", "🚀 Tech & Biz"]
     },
     "ko": {
         "title": "ARGY NEWS by gg",
-        "trends_title": "아르헨티나 트렌드 🇦🇷",
         "refresh_btn": "데이터 초기화",
         "loading": "처리 중...",
         "read_more": "자세히 보기",
         "ai_summary": "AI 요약",
+        "no_text": "텍스트가 너무 짧습니다.",
         "tabs_cat": ["🌏 국제", "🔥 정치", "💰 경제", "⚽ 스포츠", "🚀 기술/비즈니스"]
     }
 }
@@ -112,35 +112,6 @@ def translate(text, target_lang):
     if not text or len(text) < 3: return text
     try: return GoogleTranslator(source='auto', target=target_lang).translate(text)
     except: return text
-
-@st.cache_data(ttl=900)
-def get_twitter_trends():
-    """Lógica de Doble Nodo para Trending Topics"""
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
-    }
-    
-    # INTENTO 1: GetDayTrends
-    try:
-        r = requests.get("https://getdaytrends.com/argentina/", headers=headers, timeout=8)
-        if r.status_code == 200:
-            soup = BeautifulSoup(r.text, 'html.parser')
-            trends = [t.get_text() for t in soup.select('td.ph a', limit=5)]
-            if trends: return trends
-    except: pass
-    
-    # INTENTO 2: Trends24 (Fallback)
-    try:
-        r = requests.get("https://trends24.in/argentina/", headers=headers, timeout=8)
-        if r.status_code == 200:
-            soup = BeautifulSoup(r.text, 'html.parser')
-            # Trends24 usa una estructura distinta
-            trends = [t.get_text() for t in soup.select('ol.trend-card__list li a', limit=5)]
-            if trends: return trends
-    except: pass
-    
-    return []
 
 def query_ai_summarizer(text_en):
     if not API_TOKEN: return "ERROR: No token found"
@@ -156,7 +127,10 @@ def query_ai_summarizer(text_en):
 
 @st.cache_data(ttl=300)
 def fetch_robust(url_rss, url_web, prefix):
-    headers = {'User-Agent': 'Mozilla/5.0', 'Referer': 'https://www.google.com/'}
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Referer': 'https://www.google.com/'
+    }
     try:
         r = requests.get(url_rss, headers=headers, timeout=10)
         if r.status_code == 200:
@@ -185,7 +159,7 @@ def fetch_robust(url_rss, url_web, prefix):
 
 @st.cache_data(ttl=3600)
 def get_body(url):
-    headers = {'User-Agent': 'Mozilla/5.0'}
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
     try:
         r = requests.get(url, headers=headers, timeout=10)
         soup = BeautifulSoup(r.text, 'html.parser')
@@ -204,18 +178,6 @@ t = LANG_PACK[lang]
 with c1:
     st.title(t["title"])
 
-# --- SECCIÓN DE TRENDING TOPICS ---
-trends = get_twitter_trends()
-if trends:
-    st.write(f"**{t['trends_title']}**")
-    cols = st.columns(len(trends))
-    for i, trend in enumerate(trends):
-        # Limpiamos el texto por si trae basura de los selectores
-        clean_trend = trend.split('\n')[0].strip()
-        cols[i].markdown(f"`{clean_trend}`")
-else:
-    st.write("*(Trends temporarily unavailable - Check connection)*")
-
 st.divider()
 
 cat_keys = ["WORLD", "POLITICS", "ECONOMY", "SPORTS", "TECH & BIZ"]
@@ -231,7 +193,7 @@ def render_news(idx, item, source, key_prefix):
                 en_txt = translate(txt, 'en')
                 summary = query_ai_summarizer(en_txt)
                 st.info(translate(summary, lang))
-            else: st.warning("Text too short.")
+            else: st.warning(t["no_text"])
     st.divider()
 
 # 1. Pestañas de Categorías
@@ -245,12 +207,10 @@ for i, cat in enumerate(cat_keys):
             for name, config in SITES_CONFIG.items():
                 if cat in config["categories"]:
                     news = fetch_robust(config["categories"][cat]["rss"], config["categories"][cat]["web"], config["prefix"])
-                    if news: cat_data.append({"source": name, "item": news[0]})
-            if cat_data:
-                for idx, entry in enumerate(cat_data[:5], 1):
-                    render_news(idx, entry['item'], entry['source'], cat)
-            else:
-                st.info("No content available.")
+                    if news:
+                        cat_data.append({"source": name, "item": news[0]})
+            for idx, entry in enumerate(cat_data[:5], 1):
+                render_news(idx, entry['item'], entry['source'], cat)
 
 # 2. Pestañas Individuales
 for i, (name, config) in enumerate(SITES_CONFIG.items(), len(cat_keys)):
@@ -260,7 +220,8 @@ for i, (name, config) in enumerate(SITES_CONFIG.items(), len(cat_keys)):
             st.rerun()
         with st.spinner(t["loading"]):
             news_list = fetch_robust(config["rss_home"], config["prefix"], config["prefix"])
-            if not news_list: st.error(f"⚠️ {name} connection issue.")
+            if not news_list:
+                st.error(f"⚠️ {name} connection issue.")
             else:
                 for idx, item in enumerate(news_list, 1):
                     render_news(idx, item, name, name)
