@@ -237,4 +237,30 @@ for i, cat in enumerate(cat_keys):
                     news = fetch_robust(config["rss_home"], config["prefix"], config["prefix"])
                     for n in news:
                         title_upper = n['title'].upper()
-                        if any(k in title_upper for
+                        if any(k in title_upper for k in RELATED_KEYWORDS):
+                            if "SAMSUNG" not in title_upper:
+                                cat_data.append({"source": name, "item": n})
+                if not cat_data:
+                    st.info(t["no_related"])
+            else:
+                for name, config in SITES_CONFIG.items():
+                    if cat in config["categories"]:
+                        news = fetch_robust(config["categories"][cat]["rss"], config["categories"][cat]["web"], config["prefix"])
+                        if news: cat_data.append({"source": name, "item": news[0]})
+            
+            for idx, entry in enumerate(cat_data[:10], 1):
+                render_news(idx, entry['item'], entry['source'], cat)
+
+# --- PESTAÑAS INDIVIDUALES ---
+for i, (name, config) in enumerate(SITES_CONFIG.items(), len(cat_keys)):
+    with tabs[i]:
+        if st.button(t["refresh_btn"], key=f"re_{name}"):
+            st.cache_data.clear()
+            st.rerun()
+        with st.spinner(t["loading"]):
+            news_list = fetch_robust(config["rss_home"], config["prefix"], config["prefix"])
+            if not news_list:
+                st.error(f"⚠️ {name} connection issue.")
+            else:
+                for idx, item in enumerate(news_list, 1):
+                    render_news(idx, item, name, name)
