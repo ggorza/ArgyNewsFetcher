@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 from deep_translator import GoogleTranslator
 import feedparser
 
-# 1. Configuración de página - Título Minimalista
+# 1. Configuración de página
 st.set_page_config(page_title="ARGY NEWS by gg", layout="wide", page_icon="📰")
 
 # --- CONFIGURACIÓN DE IA ---
@@ -51,7 +51,6 @@ SITES_CONFIG = {
         "prefix": "https://www.ambito.com",
         "rss_home": "https://www.ambito.com/rss/pages/home.xml",
         "categories": {
-            "WORLD": {"rss": "https://www.ambito.com/rss/pages/mundo.xml", "web": "https://www.ambito.com/contenidos/mundo.html"},
             "ECONOMY": {"rss": "https://www.ambito.com/rss/pages/economia.xml", "web": "https://www.ambito.com/contenidos/economia.html"},
             "TECH & BIZ": {"rss": "https://www.ambito.com/rss/pages/negocios.xml", "web": "https://www.ambito.com/contenidos/negocios.html"}
         }
@@ -66,20 +65,25 @@ SITES_CONFIG = {
             "SPORTS": {"rss": "https://www.lanacion.com.ar/arc/outboundfeeds/rss/category/deportes/?outputType=xml", "web": "https://www.lanacion.com.ar/deportes/"}
         }
     },
-    "BA Herald": {
-        "prefix": "https://buenosairesherald.com",
-        "rss_home": "https://buenosairesherald.com/feed",
+    "iProfesional": {
+        "prefix": "https://www.iprofesional.com",
+        "rss_home": "https://www.iprofesional.com/rss/home",
         "categories": {
-            "WORLD": {"rss": "https://buenosairesherald.com/category/world/feed", "web": "https://buenosairesherald.com/category/world/"}
+            "TECH & BIZ": {"rss": "https://www.iprofesional.com/rss/tecnologia", "web": "https://www.iprofesional.com/tecnologia"}
         }
     },
-    "Perfil": {
-        "prefix": "https://www.perfil.com",
-        "rss_home": "https://www.perfil.com/rss/ultimo-momento.xml",
+    "Página/12": {
+        "prefix": "https://www.pagina12.com.ar",
+        "rss_home": "https://www.pagina12.com.ar/rss/portada",
         "categories": {
-            "WORLD": {"rss": "https://www.perfil.com/rss/internacional.xml", "web": "https://www.perfil.com/seccion/internacional"},
-            "POLITICS": {"rss": "https://www.perfil.com/rss/politica.xml", "web": "https://www.perfil.com/seccion/politica"},
-            "SPORTS": {"rss": "https://www.perfil.com/rss/deportes.xml", "web": "https://www.perfil.com/seccion/deportes"}
+            "ECONOMY": {"rss": "https://www.pagina12.com.ar/rss/secciones/economia", "web": "https://www.pagina12.com.ar/secciones/economia"}
+        }
+    },
+    "Cronista": {
+        "prefix": "https://www.cronista.com",
+        "rss_home": "https://www.cronista.com/feeds/noticias.rss",
+        "categories": {
+            "ECONOMY": {"rss": "https://www.cronista.com/feeds/noticias.rss", "web": "https://www.cronista.com/economia-politica/"}
         }
     }
 }
@@ -93,7 +97,7 @@ LANG_PACK = {
         "read_more": "Read more",
         "ai_summary": "AI Summary",
         "no_text": "Text blocked or too short.",
-        "tabs_cat": ["🌏 World", "🔥 Politics", "💰 Economy", "⚽ Sports", "🚀 Tech & Biz"]
+        "tabs_cat": ["📱 SAMSUNG", "🌏 World", "🔥 Politics", "💰 Economy", "⚽ Sports", "🚀 Tech & Biz"]
     },
     "ko": {
         "title": "ARGY NEWS by gg",
@@ -102,7 +106,7 @@ LANG_PACK = {
         "read_more": "자세히 보기",
         "ai_summary": "AI 요약",
         "no_text": "텍스트가 너무 짧습니다.",
-        "tabs_cat": ["🌏 국제", "🔥 정치", "💰 경제", "⚽ 스포츠", "🚀 기술/비즈니스"]
+        "tabs_cat": ["📱 삼성", "🌏 국제", "🔥 정치", "💰 경제", "⚽ 스포츠", "🚀 기술/비즈니스"]
     }
 }
 
@@ -127,16 +131,13 @@ def query_ai_summarizer(text_en):
 
 @st.cache_data(ttl=300)
 def fetch_robust(url_rss, url_web, prefix):
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'Referer': 'https://www.google.com/'
-    }
+    headers = {'User-Agent': 'Mozilla/5.0', 'Referer': 'https://www.google.com/'}
     try:
         r = requests.get(url_rss, headers=headers, timeout=10)
         if r.status_code == 200:
             feed = feedparser.parse(r.content)
             if feed.entries:
-                return [{"title": e.title, "link": e.link} for e in feed.entries[:5]]
+                return [{"title": e.title, "link": e.link} for e in feed.entries[:10]]
     except: pass
     try:
         r = requests.get(url_web, headers=headers, timeout=10)
@@ -159,7 +160,7 @@ def fetch_robust(url_rss, url_web, prefix):
 
 @st.cache_data(ttl=3600)
 def get_body(url):
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+    headers = {'User-Agent': 'Mozilla/5.0'}
     try:
         r = requests.get(url, headers=headers, timeout=10)
         soup = BeautifulSoup(r.text, 'html.parser')
@@ -180,7 +181,8 @@ with c1:
 
 st.divider()
 
-cat_keys = ["WORLD", "POLITICS", "ECONOMY", "SPORTS", "TECH & BIZ"]
+# Orden de las pestañas
+cat_keys = ["SAMSUNG", "WORLD", "POLITICS", "ECONOMY", "SPORTS", "TECH & BIZ"]
 tabs = st.tabs(t["tabs_cat"] + list(SITES_CONFIG.keys()))
 
 def render_news(idx, item, source, key_prefix):
@@ -196,23 +198,37 @@ def render_news(idx, item, source, key_prefix):
             else: st.warning(t["no_text"])
     st.divider()
 
-# 1. Pestañas de Categorías
+# 1. LÓGICA DE CATEGORÍAS
 for i, cat in enumerate(cat_keys):
     with tabs[i]:
         if st.button(t["refresh_btn"], key=f"re_{cat}"):
             st.cache_data.clear()
             st.rerun()
+        
         with st.spinner(t["loading"]):
             cat_data = []
-            for name, config in SITES_CONFIG.items():
-                if cat in config["categories"]:
-                    news = fetch_robust(config["categories"][cat]["rss"], config["categories"][cat]["web"], config["prefix"])
-                    if news:
-                        cat_data.append({"source": name, "item": news[0]})
-            for idx, entry in enumerate(cat_data[:5], 1):
+            
+            if cat == "SAMSUNG":
+                # Lógica especial: Buscar "SAMSUNG" en TODOS los medios
+                for name, config in SITES_CONFIG.items():
+                    news = fetch_robust(config["rss_home"], config["prefix"], config["prefix"])
+                    for n in news:
+                        if "SAMSUNG" in n['title'].upper():
+                            cat_data.append({"source": name, "item": n})
+                if not cat_data:
+                    st.info("No Samsung news found in the last few hours.")
+            else:
+                # Lógica normal por categorías
+                for name, config in SITES_CONFIG.items():
+                    if cat in config["categories"]:
+                        news = fetch_robust(config["categories"][cat]["rss"], config["categories"][cat]["web"], config["prefix"])
+                        if news:
+                            cat_data.append({"source": name, "item": news[0]})
+            
+            for idx, entry in enumerate(cat_data[:10], 1): # Mostramos hasta 10 de Samsung
                 render_news(idx, entry['item'], entry['source'], cat)
 
-# 2. Pestañas Individuales
+# 2. Pestañas de Medios Individuales
 for i, (name, config) in enumerate(SITES_CONFIG.items(), len(cat_keys)):
     with tabs[i]:
         if st.button(t["refresh_btn"], key=f"re_{name}"):
