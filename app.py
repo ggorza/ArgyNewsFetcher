@@ -18,7 +18,7 @@ RELATED_KEYWORDS = [
     "TCL", "PHILCO", "NOBLEX", "ENOVA", "BGH", "SONY", "ALCATEL"
 ]
 
-# --- CONFIGURACIÓN DE MEDIOS (Cronista eliminado por inestabilidad) ---
+# --- CONFIGURACIÓN DE MEDIOS (Actualizado con iProup, Enretail y CanalAR) ---
 SITES_CONFIG = {
     "Infobae": {
         "prefix": "https://www.infobae.com",
@@ -53,6 +53,20 @@ SITES_CONFIG = {
             "TECH & BIZ": {"rss": "https://tn.com.ar/rss/tecno/", "web": "https://tn.com.ar/tecno/"}
         }
     },
+    "iProup": {
+        "prefix": "https://www.iproup.com",
+        "rss_home": "https://www.iproup.com/rss/home",
+        "categories": {
+            "TECH & BIZ": {"rss": "https://www.iproup.com/rss/tecnologia", "web": "https://www.iproup.com/tecnologia"}
+        }
+    },
+    "Enretail": {
+        "prefix": "https://enretail.com",
+        "rss_home": "https://enretail.com/feed/",
+        "categories": {
+            "TECH & BIZ": {"rss": "https://enretail.com/category/tecnologia/feed/", "web": "https://enretail.com/category/tecnologia/"}
+        }
+    },
     "Ámbito": {
         "prefix": "https://www.ambito.com",
         "rss_home": "https://www.ambito.com/rss/pages/home.xml",
@@ -60,6 +74,20 @@ SITES_CONFIG = {
             "WORLD": {"rss": "https://www.ambito.com/rss/pages/mundo.xml", "web": "https://www.ambito.com/contenidos/mundo.html"},
             "ECONOMY": {"rss": "https://www.ambito.com/rss/pages/economia.xml", "web": "https://www.ambito.com/contenidos/economia.html"},
             "TECH & BIZ": {"rss": "https://www.ambito.com/rss/pages/negocios.xml", "web": "https://www.ambito.com/contenidos/negocios.html"}
+        }
+    },
+    "iProfesional": {
+        "prefix": "https://www.iprofesional.com",
+        "rss_home": "https://www.iprofesional.com/rss/home",
+        "categories": {
+            "TECH & BIZ": {"rss": "https://www.iprofesional.com/rss/tecnologia", "web": "https://www.iprofesional.com/tecnologia"}
+        }
+    },
+    "CanalAR": {
+        "prefix": "https://www.canalar.com.ar",
+        "rss_home": "https://www.canalar.com.ar/rss.xml",
+        "categories": {
+            "TECH & BIZ": {"rss": "https://www.canalar.com.ar/rss.xml", "web": "https://www.canalar.com.ar/"}
         }
     },
     "La Nación": {
@@ -70,20 +98,6 @@ SITES_CONFIG = {
             "POLITICS": {"rss": "https://www.lanacion.com.ar/arc/outboundfeeds/rss/category/politica/?outputType=xml", "web": "https://www.lanacion.com.ar/politica/"},
             "ECONOMY": {"rss": "https://www.lanacion.com.ar/arc/outboundfeeds/rss/category/economia/?outputType=xml", "web": "https://www.lanacion.com.ar/economia/"},
             "SPORTS": {"rss": "https://www.lanacion.com.ar/arc/outboundfeeds/rss/category/deportes/?outputType=xml", "web": "https://www.lanacion.com.ar/deportes/"}
-        }
-    },
-    "iProfesional": {
-        "prefix": "https://www.iprofesional.com",
-        "rss_home": "https://www.iprofesional.com/rss/home",
-        "categories": {
-            "TECH & BIZ": {"rss": "https://www.iprofesional.com/rss/tecnologia", "web": "https://www.iprofesional.com/tecnologia"}
-        }
-    },
-    "Página/12": {
-        "prefix": "https://www.pagina12.com.ar",
-        "rss_home": "https://www.pagina12.com.ar/rss/portada",
-        "categories": {
-            "ECONOMY": {"rss": "https://www.pagina12.com.ar/rss/secciones/economia", "web": "https://www.pagina12.com.ar/secciones/economia"}
         }
     }
 }
@@ -97,7 +111,7 @@ LANG_PACK = {
         "read_more": "Read more",
         "ai_summary": "AI Summary",
         "no_text": "Text blocked or too short.",
-        "no_samsung": "No direct Samsung news found. Searched in: {sources}",
+        "no_samsung": "No direct Samsung news found. Checked in: {sources}",
         "no_related": "No news found for partners or competitors.",
         "tabs_cat": ["📱 SAMSUNG", "🔗 RELATED", "🌏 World", "🔥 Politics", "💰 Economy", "⚽ Sports", "🚀 Tech & Biz"]
     },
@@ -223,29 +237,4 @@ for i, cat in enumerate(cat_keys):
                     news = fetch_robust(config["rss_home"], config["prefix"], config["prefix"])
                     for n in news:
                         title_upper = n['title'].upper()
-                        if any(k in title_upper for k in RELATED_KEYWORDS):
-                            if "SAMSUNG" not in title_upper:
-                                cat_data.append({"source": name, "item": n})
-                if not cat_data:
-                    st.info(t["no_related"])
-            else:
-                for name, config in SITES_CONFIG.items():
-                    if cat in config["categories"]:
-                        news = fetch_robust(config["categories"][cat]["rss"], config["categories"][cat]["web"], config["prefix"])
-                        if news: cat_data.append({"source": name, "item": news[0]})
-            for idx, entry in enumerate(cat_data[:10], 1):
-                render_news(idx, entry['item'], entry['source'], cat)
-
-# --- PESTAÑAS INDIVIDUALES ---
-for i, (name, config) in enumerate(SITES_CONFIG.items(), len(cat_keys)):
-    with tabs[i]:
-        if st.button(t["refresh_btn"], key=f"re_{name}"):
-            st.cache_data.clear()
-            st.rerun()
-        with st.spinner(t["loading"]):
-            news_list = fetch_robust(config["rss_home"], config["prefix"], config["prefix"])
-            if not news_list:
-                st.error(f"⚠️ {name} connection issue.")
-            else:
-                for idx, item in enumerate(news_list, 1):
-                    render_news(idx, item, name, name)
+                        if any(k in title_upper for
